@@ -1,1 +1,1 @@
-# Programming paradigms homework
+# Programming paradigms homework.
