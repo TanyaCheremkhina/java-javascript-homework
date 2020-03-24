@@ -1,2 +1,2 @@
-# java_homeworks
-My java homework.
+# java & javascript homework
+My java and javascript homework.
