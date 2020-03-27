@@ -41,8 +41,37 @@ function BinFunc(left, right, f, oper) {
     };
 }
 
+getLog = function(x, y) {
+    x = Math.abs(x);
+    y = Math.abs(y);
+    return Math.log(y) / Math.log(x);
+};
+
+function Log(left, right) {
+    BinFunc.apply(this, [left, right, (a, b) => getLog(a, b), "log"]);
+    this.diff = function (d) {
+        let rightLog = new Log(e, right);
+        let leftLog = new Log(e, left);
+        return new Divide(new Subtract(
+            new Divide(new Multiply(leftLog, right.diff(d)), right),
+            new Divide(new Multiply(rightLog, left.diff(d)), left)),
+        new Multiply(leftLog, leftLog));
+    }
+}
+
+function Power(left, right) {
+    BinFunc.apply(this, [left, right, (a, b) => Math.pow(a, b), "pow"]);
+    this.diff = function (d) {
+        return new Multiply(
+            new Power(left, new Subtract(right, new Const(1))),
+            new Add(new Multiply(right, left.diff(d)),
+                new Multiply(left, new Multiply(new Log(e, left), right.diff(d)))));
+
+    }
+}
+
 function Add(left, right) {
-    BinFunc.apply(this, [left, right, (a, b) => a + b, "+", (a, b) => a + b]);
+    BinFunc.apply(this, [left, right, (a, b) => a + b, "+"]);
     this.diff = function(d) {
         return new Add(this.left.diff(d), this.right.diff(d));
     }
@@ -83,7 +112,9 @@ const binOperators = {
     "+": Add,
     "-": Subtract,
     "*": Multiply,
-    "/": Divide
+    "/": Divide,
+    "pow" : Power,
+    "log" : Log
 };
 
 const unOperators = {
@@ -128,4 +159,3 @@ const parse = function (input) {
     }
     return stack[0];
 };
-
