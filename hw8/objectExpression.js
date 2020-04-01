@@ -8,12 +8,14 @@ function Const(val) {
     this.diff = () => new Const(0);
 }
 
+const vars = new Set(['x', 'y', 'z']);
+
 function Variable(s) {
     this.str = s;
     this.evaluate = (x, y = 0, z = 0) => {
-        if (s === 'x') {
+        if (s === vars[0]) {
             return x;
-        } else if (s === 'y') {
+        } else if (s === vars[1]) {
             return y;
         } else {
             return z;
@@ -144,8 +146,6 @@ const constants = {
     "e": e
 };
 
-const vars = new Set(['x', 'y', 'z']);
-
 const mySplit = function (str) {
     let tokens = [];
     let cur = '';
@@ -238,7 +238,7 @@ function parsePrefix(tokens) {
                 return args[0];
             } else if (constants[i] !== undefined) {
                 args.push(constants[i]);
-            } else if (vars.has(i)) {
+            } else if (i in vars) {
                 args.push(new Variable(i));
             } else if (isNumber(i)) {
                 args.push(new Const(parseInt(i)));
