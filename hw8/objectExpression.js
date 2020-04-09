@@ -8,7 +8,7 @@ function Const(val) {
     this.diff = () => new Const(0);
 }
 
-const vars = new Set(['x', 'y', 'z']);
+const vars = ['x', 'y', 'z'];
 
 function Variable(s) {
     this.str = s;
@@ -238,7 +238,7 @@ function parsePrefix(tokens) {
                 return args[0];
             } else if (constants[i] !== undefined) {
                 args.push(constants[i]);
-            } else if (i in vars) {
+            } else if (vars.includes(i)) {
                 args.push(new Variable(i));
             } else if (isNumber(i)) {
                 args.push(new Const(parseInt(i)));
