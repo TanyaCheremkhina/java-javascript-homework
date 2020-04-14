@@ -1,5 +1,9 @@
 "use strict";
 
+const tripleUnOperation = function (f) {
+    return a => (x, y = 0, z = 0) => f(a(x, y, z));
+};
+
 let vars = ['x', 'y', 'z'];
 
 const variable = s => (x, y = 0, z = 0) => {
@@ -12,24 +16,27 @@ const variable = s => (x, y = 0, z = 0) => {
     }
 };
 
+const cnst = value => () => value;
+
 //:NOTE: Operations of any arity are required
-const tripleOperation = function (f) {
+const tripleOperator = function(f) {
     return (...args) => {
-        return (x, y = 0, z = 0) => {
-            let s = args[0](x, y, z);
-            for (let i = 1; i < args.length; i++) {
-                s = f(s, args[i](x, y, z));
-            }
-            return s;
+        if (typeof args[0] === 'object') {
+            args = args[0];
         }
+        return (x, y = 0, z = 0) => f(evaluate(args)(x, y, z));
     }
 };
 
-const tripleUnOperation = function (f) {
-    return a => (x, y = 0, z = 0) => f(a(x, y, z));
+const makeFunc = function (f) {
+    return (args) => {
+        let s = args[0];
+        for (let i = 1; i < args.length; i++) {
+            s = f(s, args[i]);
+        }
+        return s;
+    }
 };
-
-const cnst = value => x => value;
 
 const evaluate = args => (x, y, z) => {
     let a = [];
@@ -43,10 +50,12 @@ const evaluate = args => (x, y, z) => {
 const sin = tripleUnOperation(val => Math.sin(val));
 const cos = tripleUnOperation(val => Math.cos(val));
 const negate = tripleUnOperation(val => -val);
-const subtract = tripleOperation((a, b) => a - b);
-const add = tripleOperation((a, b) => a + b);
-const multiply = tripleOperation((a, b) => a * b);
-const divide = tripleOperation((a, b) => a / b);
+
+const subtract = tripleOperator(makeFunc((a, b) => a - b));
+const add = tripleOperator(makeFunc((a, b) => a + b));
+const multiply = tripleOperator(makeFunc((a, b) => a * b));
+const divide = tripleOperator(makeFunc((a, b) => a / b));
+
 const e = cnst(Math.E);
 const pi = cnst(Math.PI);
 
@@ -59,24 +68,15 @@ const topFromStack = function (stack, k) {
     return args;
 };
 
-const triplePolyOperator = function(f) {
-    return (...args) => {
-        if (args.length === 1) {
-            args = args[0];
-        }
-        return (x, y = 0, z = 0) => f(evaluate(args)(x, y, z));
-    }
-};
-
-const avg5 = triplePolyOperator(args => {
+const avg5 = tripleOperator(args => {
     let a = 0;
-    for (let x = 0; x < args.length; x++) {
-        a += args[x];
+    for (let i = 0; i < args.length; i++) {
+        a += args[i];
     }
     return a / 5;
 });
 
-const med3 = triplePolyOperator(args => {
+const med3 = tripleOperator(args => {
     args.sort((a, b) => a - b);
     return args[1];
 });
@@ -136,6 +136,8 @@ const parse = function (input) {
     }
     return stack[0];
 };
+
+console.log(parse('x y z med3')(1, 3, 2));
 
 for (let i = 1; i <= 10; i++) {
     console.log(parse("x x * 2 x * - 1 +")(i));
