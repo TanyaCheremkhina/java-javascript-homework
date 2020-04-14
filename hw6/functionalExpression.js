@@ -1,17 +1,28 @@
 "use strict";
 
+let vars = ['x', 'y', 'z'];
+
 const variable = s => (x, y = 0, z = 0) => {
-    if (s === "x") {
+    if (s === vars[0]) {
         return x;
-    } else if (s === "y") {
+    } else if (s === vars[1]) {
         return y;
     } else {
         return z;
     }
 };
 
-const tripleBinOperation = function (f) {
-    return (a, b) => (x, y = 0, z = 0) => f(a(x, y, z), b(x, y, z));
+//:NOTE: Operations of any arity are required
+const tripleOperation = function (f) {
+    return (...args) => {
+        return (x, y = 0, z = 0) => {
+            let s = args[0](x, y, z);
+            for (let i = 1; i < args.length; i++) {
+                s = f(s, args[i](x, y, z));
+            }
+            return s;
+        }
+    }
 };
 
 const tripleUnOperation = function (f) {
@@ -28,13 +39,14 @@ const evaluate = args => (x, y, z) => {
     return a;
 };
 
+
 const sin = tripleUnOperation(val => Math.sin(val));
 const cos = tripleUnOperation(val => Math.cos(val));
 const negate = tripleUnOperation(val => -val);
-const subtract = tripleBinOperation((a, b) => a - b);
-const add = tripleBinOperation((a, b) => a + b);
-const multiply = tripleBinOperation((a, b) => a * b);
-const divide = tripleBinOperation((a, b) => a / b);
+const subtract = tripleOperation((a, b) => a - b);
+const add = tripleOperation((a, b) => a + b);
+const multiply = tripleOperation((a, b) => a * b);
+const divide = tripleOperation((a, b) => a / b);
 const e = cnst(Math.E);
 const pi = cnst(Math.PI);
 
