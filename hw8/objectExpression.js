@@ -1,48 +1,42 @@
-// :NOTE: strict mode is switched off :(
 "use strict";
-// fixed :)
 
-const Expression = {
-    evaluate : function(x, y, z) {
+function Expression(...args) {
+    this.args = args;
+    this.evaluate = function(x, y, z) {
         const mArgs = this.args.map(i => i.evaluate(x, y, z));
         return this.f(mArgs);
-    },
-    toString : function () {
+    }
+    this.toString = function () {
         let str = this.args.join(' ');
         if (this.args.length > 1) { str += ' ' + this.oper }
         return str;
-    },
-    diff : function(d) {
-        // just declaration
-    },
-    prefix : function () {
+    }
+    this.prefix = function () {
         let str = '';
         let mArgs = this.args.map(i => i.prefix());
         if (this.args.length > 1) { str += '(' + this.oper + ' ' }
         str += mArgs.join(' ');
         if (this.args.length > 1) { str += ')'; }
         return str;
-    },
-    postfix : function () {
+    }
+    this.postfix = function () {
         let str = '';
-        if (this.args.length > 1) { str += '('};
+        if (this.args.length > 1) { str += '('}
         let mArgs = this.args.map(i => i.postfix());
         str += mArgs.join(' ');
         if (this.args.length > 1) { str += ' ' + this.oper }
         if (this.args.length > 1) { str += ')'; }
         return str;
-    },
-    sign : 0
+    }
 }
 
 function Const(...args) {
     if (args.length !== 1) {
         throw new Error('In declaration of Const must be 1 argument');
     }
-    const t = Object.create(Expression);
-    t.args = args;
+    let t = {};
+    Expression.apply(t, args);
     t.evaluate = () => t.args[0];
-    // t.toString = () => args[0].toString();
     t.diff = (d) => new Const(0);
     t.prefix = t.toString;
     t.postfix = t.toString;
@@ -50,13 +44,12 @@ function Const(...args) {
 }
 
 const vars = ['x', 'y', 'z'];
-
 function Variable(...args) {
     if (args.length !== 1) {
         throw new Error('In declaration of Variable must be 1 argument');
     }
-    const t = Object.create(Expression);
-    t.args = args;
+    const t = {};
+    Expression.apply(t, args);
     t.evaluate = (x, y, z) => {
         const mapa = new Map([
             [vars[0], x],
@@ -65,46 +58,57 @@ function Variable(...args) {
         ]);
         return mapa.get(t.args[0]);
     }
-    // t.toString = () => t.args[0];
     t.diff = (d) => new Const((d === t.args[0]) * 1);
     t.prefix = t.toString;
     t.postfix = t.toString;
     return t;
 }
 
-// :NOTE: this function doesn't assign prototype to object -> all functions are copied to each instance
-// fixed, I hope
+const arity = new Map([
+        ["+", 2],
+        ["-", 2],
+        ["*", 2],
+        ["/", 2],
+        ["negate", 1],
+        ["pow", 2],
+        ["log", 2]
+    ]
+)
 
 let pi = new Const(Math.PI);
 let e = new Const(Math.E);
 
-function Operator(args, f, oper) {
-    if (args.length === 0 && polyOperators[oper] === undefined) {
-        throw new Error("No arguments for operator " + oper);
+function OperatorConstructor(func, oper, diffFunc) {
+    function Constructor() {
+        Expression.apply(this, arguments);
+        if (arity.get(oper) === 1 || arity.get(oper) === -1) {
+            this.toString = function () {
+                return this.args.join(' ').toString() + ' ' + oper;
+            }
+            this.prefix = function () {
+                return '(' + oper + ' ' + this.args.map(i => i.prefix()).join(' ') + ')';
+            }
+            this.postfix = function () {
+                return '(' + this.args.map(i => i.postfix()).join(' ') + ' ' + oper + ')';
+            }
+        }
     }
-    const t = Object.create(Expression);
-    t.args = args;
-    t.f = f;
-    t.oper = oper;
-    return t;
+    Constructor.prototype.f = func;
+    Constructor.prototype.oper = oper;
+    Constructor.prototype.diff = diffFunc;
+
+    return Constructor;
 }
 
-function Log(...args) {
-    if (args.length !== 2) {
-        throw new Error('Invalid arguments for Log');
-    }
-    const getLog = function(args) {
+const Log = OperatorConstructor(function(args) {
         let x = args[0], y = args[1];
         x = Math.abs(x);
         y = Math.abs(y);
         return Math.log(y) / Math.log(x);
-    }
-    const t = Object.create(Operator(args, getLog, 'log'));
-    // :NOTE: why `diff` function is defined separately
-    // fixed, now dif is defined in Expression
-    t.diff = function (d) {
-        let right = args[1];
-        let left = args[0];
+    }, 'log',
+    function (d) {
+        let right = this.args[1];
+        let left = this.args[0];
         let rightLog = new Log(e, right);
         let leftLog = new Log(e, left);
         return new Divide(new Subtract(
@@ -112,25 +116,19 @@ function Log(...args) {
             new Divide(new Multiply(rightLog, left.diff(d)), left)),
             new Multiply(leftLog, leftLog));
     }
-    return t;
-}
+)
 
-function Power(...args) {
-    if (args.length !== 2) {
-        throw new Error('In declaration of Power must be 2 arguments');
-    }
-    const t = Object.create(Operator(args, args => Math.pow(args[0], args[1]), 'pow'));
-    t.diff = function (d) {
-        let left = args[0];
-        let right = args[1];
+const Power = OperatorConstructor(args => Math.pow(args[0], args[1]), 'pow',
+    function (d) {
+        let left = this.args[0];
+        let right = this.args[1];
         return new Multiply(
             new Power(left, new Subtract(right, new Const(1))),
             new Add(new Multiply(right, left.diff(d)),
                 new Multiply(left, new Multiply(new Log(e, left), right.diff(d))))
         );
     }
-    return t;
-}
+);
 
 const makeFunc = function (f) {
     return (args) => {
@@ -142,92 +140,68 @@ const makeFunc = function (f) {
     }
 };
 
-function Add(...args) {
-    const t = Object.create(Operator(args, makeFunc((a, b) => a + b), '+'));
-    t.diff = function(d) {
-        const a = args.map(i => i.diff(d));
-        return new Add(...a);
-    }
-    return t;
-}
+const Add = OperatorConstructor(makeFunc((a, b) => a + b), '+',
+    function(d) {
+        return new Add(...(this.args.map(i => i.diff(d))));
+    });
 
-function Subtract(...args) {
-    const t = Object.create(Operator(args, makeFunc((a, b) => a - b), '-'));
-    t.diff = function(d) {
-        const a = args.map(i => i.diff(d));
-        return new Subtract(...a);
+const Subtract = OperatorConstructor(makeFunc((a, b) => a - b), '-',
+    function(d) {
+        return new Subtract(...this.args.map(i => i.diff(d)));
     }
-    return t;
-}
-
-function Multiply(...args) {
-    const t = Object.create(Operator(args, makeFunc((a, b) => a * b), '*'));
-    t.diff = function (d) {
+);
+const Multiply = OperatorConstructor(makeFunc((a, b) => a * b), '*',
+    function (d) {
         let arr = [];
-        for (let i = 0; i < t.args.length; i++) {
-            let element = [...t.args];
+        for (let i = 0; i < this.args.length; i++) {
+            let element = [...this.args];
             element[i] = element[i].diff(d);
             arr.push(new Multiply(...element));
         }
         return new Add(...arr);
     }
-    return t;
-}
-
-function Divide(...args) {
-    const t = Object.create(Operator(args, makeFunc((a, b) => a / b), '/'))
-    t.diff = function (d) {
-        let right = t.args.slice(1);
-        let left = t.args[0];
+);
+const Divide = OperatorConstructor(makeFunc((a, b) => a / b), '/',
+    function (d) {
+        let right = this.args.slice(1);
+        let left = this.args[0];
         return new Divide(
             new Subtract(
                 new Multiply(left.diff(d), ...right),
                 new Multiply(left, new Multiply(...right).diff(d))
             ),
             new Multiply(...right, ...right)
-        )
+        );
     }
-    return t;
+);
+const Negate = OperatorConstructor(x => (-1 * x), 'negate',
+    function (d) {
+        return new Negate(this.args[0].diff(d));
+    }
+);
+
+const topFromStack = function (stack, k) {
+    let args = [];
+    while (k-- > 0) {
+        args.push(stack[stack.length - 1]);
+        stack.pop();
+    }
+    return args.reverse();
 }
 
-function Negate(...args) {
-    if (args.length !== 1) {
-        throw new Error('In declaration of Negate must be 1 argument');
-
-    }
-    const t = Object.create(new Multiply(new Const(-1), ...args));
-    t.toString = function () {
-        return args[0].toString() + " negate";
-    }
-    t.prefix = function () {
-        return '(negate ' + args[0].prefix() + ')';
-    }
-    t.postfix = function () {
-        return '(' + args[0].postfix() + ' negate)';
-    }
-    return t;
-}
-
-const binOperators = {
-    "+": Add,
-    "-": Subtract,
-    "*": Multiply,
-    "/": Divide,
-    "pow": Power,
-    "log": Log,
-}
-const polyOperators = {
-    "sumexp" : Sumexp,
-    "softmax" : Softmax
-};
-const unOperators = {
-    "negate": Negate
-};
-const constants = {
-    "pi": pi,
-    "e": e
-};
-const allOperators = {...unOperators, ...binOperators, ...polyOperators};
+const constants = new Map([
+    ["pi", pi],
+    ["e", e]
+]);
+const allOperators = new Map([
+    ["+", Add],
+    ["-", Subtract],
+    ["*", Multiply],
+    ["/", Divide],
+    ["pow", Power],
+    ["log", Log],
+    ["negate", Negate]
+]);
 
 const parse = function (input) {
     let tokens = input.split(' ');
@@ -235,15 +209,10 @@ const parse = function (input) {
     for (const i of tokens) {
         if (i === '') {
             // do nothing
-        } else if (constants[i] !== undefined) {
-            stack.push(new constants[i]);
-        } else if (unOperators[i] !== undefined) {
-            stack[stack.length - 1] = new unOperators[i](stack[stack.length - 1]);
-        } else if (binOperators[i] !== undefined) {
-            let a = stack[stack.length - 2];
-            let b = stack[stack.length - 1];
-            stack.pop();
-            stack[stack.length - 1] = new binOperators[i](a, b);
+        } else if (constants.get(i) !== undefined) {
+            stack.push(new constants.get(i));
+        } else if (allOperators.get(i) !== undefined) {
+            stack.push(new (allOperators.get(i))(...topFromStack(stack, arity.get(i))));
         } else if (vars.includes(i)) {
             stack.push(new Variable(i));
         } else {
@@ -253,8 +222,8 @@ const parse = function (input) {
     return stack[0];
 };
 
+
 // ---------------------- end of hw7
-// In table I've got delay 0 for hw8, but it is first submit for hw8. I think there should be delay 1.
 
 const sumexp = function (args) {
     let expArgs = 0;
@@ -264,51 +233,35 @@ const sumexp = function (args) {
     return expArgs;
 }
 
-function Sumexp(...args) {
-    const t = Object.create(Operator(args, sumexp, 'sumexp'));
-    t.evaluate = function(x, y, z) {
-        if (t.args.length === 0) {
-            return 0;
-        } else {
-            return Object.getPrototypeOf(t).evaluate(x, y, z);
-        }
-    }
-    t.diff = function (d) {
-        if (args.length === 0) {
+const Sumexp = OperatorConstructor(sumexp, 'sumexp',
+    function (d) {
+        if (this.args.length === 0) {
             return new Const(0);
         }
-        let dExpArgs = args.map(i => new Multiply(i.diff(d), new Power(e, i)));
+        let dExpArgs = this.args.map(i => new Multiply(i.diff(d), new Power(e, i)));
         return new Add(...dExpArgs);
     }
-    t.postfix = function () {
-        let str = '(';
-        let a = args.map(i => i.postfix());
-        return str + a.join(' ') + ' sumexp)';
-    }
-    return t;
-}
+)
 
 const softmax = function (args) {
     let down = sumexp(args);
     return Math.pow(Math.E, args[0]) / down;
 }
 
-function Softmax(...args) {
-    const t = Object.create(Operator(args, softmax, 'softmax'));
-    t.diff = function (d) {
-        let down = new Sumexp(...args);
-        let num = new Sumexp(args[0]);
+const Softmax = OperatorConstructor(softmax, 'softmax',
+    function (d) {
+        let down = new Sumexp(...this.args);
+        let num = new Sumexp(this.args[0]);
         return new Divide(
             new Subtract(new Multiply(num.diff(d), down), new Multiply(down.diff(d), num)),
             new Multiply(down, down));
     }
-    t.postfix = function () {
-        let str = '(';
-        let a = args.map(i => i.postfix());
-        return str + a.join(' ') + ' softmax)';
-    }
-    return t;
-}
+)
+
+arity.set('sumexp', -1);
+arity.set('softmax', -1);
+allOperators.set('sumexp', Sumexp);
+allOperators.set('softmax', Softmax);
 
 const isNumber = function (str) {
     if (str === '-' || str === '+') {
@@ -358,11 +311,11 @@ const mySplit = function (str) {
         } else if (isNumber(x)) {
             return [new Const(parseInt(x))];
         } else {
-            throw new Error("Invalid expression");
+            throw new Error("Invalid expression: undefined variable or invalid number, token number 1");
         }
     }
     if (tokens[0] !== '(' || tokens[tokens.length - 1] !== ')') {
-        throw new Error("Expression must be in ( )");
+        throw new Error("All expression must be in ( )");
     }
     return tokens;
 };
@@ -371,71 +324,32 @@ const makeMessage = function (str, start) {
     return str + ", token number " + (start + 1);
 }
 
-const parsePostfix = function (tokens) {
-    let start = 1;
-    tokens = mySplit(tokens);
-    if (tokens.length === 1) {
-        return tokens[0];
-    }
-    const toParse = () => {
-        let args = [];
-        while (start < tokens.length) {
-            let i = tokens[start];
-            if (i === '(') {
-                start++;
-                args.push(toParse());
-                continue;
-            } else if (i === ')') {
-                throw new Error(makeMessage("Unexpected ')'", start));
-            } else if (constants[i] !== undefined) {
-                args.push(new constants[i]);
-            } else if (vars.includes(i)) {
-                args.push(new Variable(i));
-            } else if (isNumber(i)) {
-                args.push(new Const(parseInt(i)));
-            } else if (allOperators[i] !== undefined) {
-                if (start + 1 === tokens.length || tokens[start + 1] !== ')') {
-                    throw new Error(makeMessage("')' expected", start + 1));
-                }
-                arityCheck(args, i, start);
-                start += 2;
-                return allOperators[i](...args);
-            } else {
-                throw new Error(makeMessage("Undefined symbol in source: " + i, start));
-            }
-            start++;
-        }
-        throw new Error(makeMessage("Some troubles with braces", start));
-    }
-    let ans = toParse();
-    finalCheck(start, tokens);
-    return ans;
-};
-
-const arityCheck = function(args, op, start) {
-    if (unOperators[op] !== undefined && args.length !== 1 ||
-        binOperators[op] !== undefined && args.length !== 2) {
-        throw new Error(makeMessage("Amount of arguments doesn't match to operator", start));
+const arityCheck = function(args, op, pos) {
+    if (arity.get(op) > 0 && args.length !== arity.get(op)) {
+        throw new Error(makeMessage("Amount of arguments doesn't match to operator", pos));
     }
 }
 
-const finalCheck = function(start, tokens) {
+const finalCheck = function(start, tokens, pos) {
     if (start < tokens.length) {
-        throw new Error(makeMessage("All expression must be in ( )", start));
+        throw new Error(makeMessage("Expression after this token is not in braces", pos));
     }
 }
 
-const parsePrefix = function (tokens) {
+const parsePrefix = function (tokens, rev = 0) {
     let start = 1;
-    tokens = mySplit(tokens);
-    if (tokens.length === 1) {
-        return tokens[0];
+    if (typeof tokens === 'string') {
+        tokens = mySplit(tokens);
+        if (tokens.length === 1) {
+            return tokens[0];
+        }
     }
+    const pos = () => start * (1 - rev) + (tokens.length - start) * rev;
     const toParse = () => {
         let args = [];
         let i = tokens[start];
-        if (allOperators[i] === undefined) {
-            throw new Error(makeMessage("Operator expected", start));
+        if (allOperators.get(i) === undefined) {
+            throw new Error(makeMessage("Operator expected", pos()));
         }
         let op = i;
         start++;
@@ -447,22 +361,40 @@ const parsePrefix = function (tokens) {
                 continue;
             } else if (i === ')') {
                 start++;
-                arityCheck(args, op, start);
-                return allOperators[op](...args);
-            } else if (constants[i] !== undefined) {
-                args.push(constants[i]);
+                arityCheck(args, op, pos());
+                if (rev === 1) {
+                    args = args.reverse();
+                }
+                return new (allOperators.get(op))(...args);
+            } else if (constants.get(i) !== undefined) {
+                args.push(constants.get(i));
             } else if (vars.includes(i)) {
                 args.push(new Variable(i));
             } else if (isNumber(i)) {
                 args.push(new Const(parseInt(i)));
             } else {
-                throw new Error(makeMessage("Unexpected symbol in source: " + i, start));
+                throw new Error(makeMessage("Unexpected symbol in source: " + i, pos()));
             }
             start++;
         }
-        throw new Error(makeMessage("All expressions must be in ( )", start));
+        throw new Error(makeMessage("All expressions must be in ( )", pos()));
     }
     let ans = toParse();
-    finalCheck(start, tokens);
+    finalCheck(start, tokens, pos());
     return ans;
+}
+
+
+const parsePostfix = function (tokens) {
+    let rTokens = mySplit(tokens).reverse().map(i => {
+        if (i === '(') {
+            return ')';
+        } else if (i === ')') {
+            return '(';
+        } else {
+            return i;
+        }
+    });
+    let str = rTokens.join(' ');
+    return parsePrefix(str, 1);
 }
