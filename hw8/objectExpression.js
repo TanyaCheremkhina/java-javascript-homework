@@ -2,67 +2,81 @@
 
 function Expression(...args) {
     this.args = args;
-    this.evaluate = function(x, y, z) {
-        const mArgs = this.args.map(i => i.evaluate(x, y, z));
-        return this.f(mArgs);
-    }
-    this.toString = function () {
-        let str = this.args.join(' ');
-        if (this.args.length > 1) { str += ' ' + this.oper }
-        return str;
-    }
-    this.prefix = function () {
-        let str = '';
-        let mArgs = this.args.map(i => i.prefix());
-        if (this.args.length > 1) { str += '(' + this.oper + ' ' }
-        str += mArgs.join(' ');
-        if (this.args.length > 1) { str += ')'; }
-        return str;
-    }
-    this.postfix = function () {
-        let str = '';
-        if (this.args.length > 1) { str += '('}
-        let mArgs = this.args.map(i => i.postfix());
-        str += mArgs.join(' ');
-        if (this.args.length > 1) { str += ' ' + this.oper }
-        if (this.args.length > 1) { str += ')'; }
-        return str;
-    }
+}
+Expression.prototype.prefix = function () {
+    let str = '';
+    let mArgs = this.args.map(i => i.prefix());
+    if (this.args.length > 1) { str += '(' + this.oper + ' ' }
+    str += mArgs.join(' ');
+    if (this.args.length > 1) { str += ')'; }
+    return str;
+}
+Expression.prototype.postfix = function () {
+    let str = '';
+    if (this.args.length > 1) { str += '('}
+    let mArgs = this.args.map(i => i.postfix());
+    str += mArgs.join(' ');
+    if (this.args.length > 1) { str += ' ' + this.oper }
+    if (this.args.length > 1) { str += ')'; }
+    return str;
+}
+Expression.prototype.evaluate = function(x, y, z) {
+    const mArgs = this.args.map(i => i.evaluate(x, y, z));
+    return this.f(mArgs);
+}
+Expression.prototype.toString = function () {
+    let str = this.args.join(' ');
+    if (this.args.length > 1) { str += ' ' + this.oper }
+    return str;
 }
 
 function Const(...args) {
     if (args.length !== 1) {
         throw new Error('In declaration of Const must be 1 argument');
     }
-    let t = {};
-    Expression.apply(t, args);
-    t.evaluate = () => t.args[0];
-    t.diff = (d) => new Const(0);
-    t.prefix = t.toString;
-    t.postfix = t.toString;
-    return t;
+    Expression.apply(this, args);
 }
+Const.prototype = Object.create(Expression.prototype);
+Const.prototype.diff = () => new Const(0);
+Const.prototype.toString = function() {
+    return this.args[0].toString();
+}
+Const.prototype.prefix = Const.prototype.toString;
+Const.prototype.postfix = Const.prototype.toString;
+Const.prototype.evaluate = function() {
+    return this.args[0];
+}
+
+const pi = new Const(Math.PI);
+const e = new Const(Math.E);
 
 const vars = ['x', 'y', 'z'];
 function Variable(...args) {
     if (args.length !== 1) {
         throw new Error('In declaration of Variable must be 1 argument');
     }
-    const t = {};
-    Expression.apply(t, args);
-    t.evaluate = (x, y, z) => {
-        const mapa = new Map([
-            [vars[0], x],
-            [vars[1], y],
-            [vars[2], z]
-        ]);
-        return mapa.get(t.args[0]);
-    }
-    t.diff = (d) => new Const((d === t.args[0]) * 1);
-    t.prefix = t.toString;
-    t.postfix = t.toString;
-    return t;
+    Expression.apply(this, args);
 }
+Variable.prototype = Object.create(Expression.prototype);
+Variable.prototype.evaluate = function(x, y, z) {
+    const mapa = new Map([
+        [vars[0], x],
+        [vars[1], y],
+        [vars[2], z]
+    ]);
+    return mapa.get(this.args[0]);
+}
+Variable.prototype.diff = function(d) {
+    return new Const((d === this.args[0]) * 1);
+}
+Variable.prototype.toString = function() {
+    return this.args[0];
+}
+Variable.prototype.prefix = Variable.prototype.toString;
+Variable.prototype.postfix = Variable.prototype.toString;
+
+console.log(new Const(10).toString());
+console.log(new Const(10).prefix());
 
 const arity = new Map([
         ["+", 2],
@@ -75,12 +89,9 @@ const arity = new Map([
     ]
 )
 
-let pi = new Const(Math.PI);
-let e = new Const(Math.E);
-
 function OperatorConstructor(func, oper, diffFunc) {
-    function Constructor() {
-        Expression.apply(this, arguments);
+    function Constructor(...args) {
+        Expression.apply(this, args);
         if (arity.get(oper) === 1 || arity.get(oper) === -1) {
             this.toString = function () {
                 return this.args.join(' ').toString() + ' ' + oper;
@@ -93,14 +104,15 @@ function OperatorConstructor(func, oper, diffFunc) {
             }
         }
     }
+    Constructor.prototype = Object.create(Expression.prototype);
     Constructor.prototype.f = func;
     Constructor.prototype.oper = oper;
     Constructor.prototype.diff = diffFunc;
-
     return Constructor;
 }
 
-const Log = OperatorConstructor(function(args) {
+
+const Log = OperatorConstructor((args) => {
         let x = args[0], y = args[1];
         x = Math.abs(x);
         y = Math.abs(y);
@@ -143,7 +155,9 @@ const makeFunc = function (f) {
 const Add = OperatorConstructor(makeFunc((a, b) => a + b), '+',
     function(d) {
         return new Add(...(this.args.map(i => i.diff(d))));
-    });
+    }
+);
+
 
 const Subtract = OperatorConstructor(makeFunc((a, b) => a - b), '-',
     function(d) {
@@ -162,7 +176,7 @@ const Multiply = OperatorConstructor(makeFunc((a, b) => a * b), '*',
     }
 );
 const Divide = OperatorConstructor(makeFunc((a, b) => a / b), '/',
-    function (d) {
+    function(d) {
         let right = this.args.slice(1);
         let left = this.args[0];
         return new Divide(
@@ -221,7 +235,6 @@ const parse = function (input) {
     }
     return stack[0];
 };
-
 
 // ---------------------- end of hw7
 
@@ -314,8 +327,8 @@ const mySplit = function (str) {
             throw new Error("Invalid expression: undefined variable or invalid number, token number 1");
         }
     }
-    if (tokens[0] !== '(' || tokens[tokens.length - 1] !== ')') {
-        throw new Error("All expression must be in ( )");
+    if (tokens[0] !== '(') {
+        throw new Error("first ( missed");
     }
     return tokens;
 };
@@ -377,13 +390,12 @@ const parsePrefix = function (tokens, rev = 0) {
             }
             start++;
         }
-        throw new Error(makeMessage("All expressions must be in ( )", pos()));
+        throw new Error(makeMessage("Missing )", pos()));
     }
     let ans = toParse();
     finalCheck(start, tokens, pos());
     return ans;
 }
-
 
 const parsePostfix = function (tokens) {
     let rTokens = mySplit(tokens).reverse().map(i => {
