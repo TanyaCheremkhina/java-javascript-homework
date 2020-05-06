@@ -15,24 +15,40 @@
 (def checkNumbers (checkForEvery (fn [x & y] (isa? (type x) Number))))
 (def checkVectors (checkForEvery (fn [x & y] (and (= (type x) clojure.lang.PersistentVector) (checkNumbers x)))))
 (def checkMatrix (checkForEvery (fn [x & y] (and (checkVectors x) (checkLength x)))))
+(def checkV (checkForEvery (fn [x & y] (and (= (type x) clojure.lang.PersistentVector)))))
+
+(defn checkTensors [args] (or (checkNumbers args) (and (checkV args) (checkLength args) (recur (into [] (apply concat args))))))
 
 (defn toVector [args] (mapv identity args))
 
+(defn myMapping [f args] (mapv (fn [i] (apply f ((projector i) args))) (range (count (first args)))))
+
 (defn vf [f] (fn [& args] {
                            :pre  [(checkVectors args) (checkLength args)]
-                           :post [(= (count (nth args 0)) (count %))]
-                           } (mapv (fn [i] (apply f ((projector i) args))) (range (count (nth args 0))))))
+                           :post [(= (count (first args)) (count %))]
+                           } (myMapping f args)))
 (def v+ (vf +))
 (def v- (vf -))
 (def v* (vf *))
 
 (defn mf [f] (fn [& args] {
                            :pre  [(checkMatrix args) (checkLength args)]
-                           :post [(= (count (nth args 0)) (count %)) (checkLength %)]
-                           } (mapv (fn [i] (apply (vf f) ((projector i) args))) (range (count (nth args 0))))))
+                           :post [(= (count (first args)) (count %)) (checkLength %)]
+                           } (myMapping (vf f) args)))
 (def m+ (mf +))
 (def m- (mf -))
 (def m* (mf *))
+
+(defn tf [f] (fn [& args] {
+                           :pre [(checkTensors args) (checkLength args)]
+                           :post [(= (count (first args)) (count %)) ]
+                           } (cond (checkVectors args) (apply (vf f) args)
+                                   (checkMatrix args) (apply (mf f) args)
+                                   :else (myMapping (tf f) args))))
+
+(def t+ (tf +))
+(def t* (tf *))
+(def t- (tf -))
 
 (defn v*s [v & s] {
                    :pre  [(checkVectors [v]) (or (= (count s) 0) (checkNumbers s))]
@@ -52,7 +68,7 @@
 
 (defn m*m [m1 & args] {
                        :pre  [(checkMatrix [m1])
-                              (or (= (count args) 0) (println (first args))
+                              (or (= (count args) 0)
                                   (and (checkMatrix [(first args)])
                                        (= (count (first args)) (count (nth m1 0)))))]
                        :post [(checkMatrix [%])
