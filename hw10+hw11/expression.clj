@@ -1,4 +1,3 @@
-;review
 (defn expression [func] (fn [& args] (fn [values] (apply func (mapv (fn [i] (i values)) args)))))
 (defn constant [x] (fn [values] x))
 (defn variable [x] (fn [values] (get values x)))
