@@ -1,3 +1,4 @@
+;review
 (defn expression [func] (fn [& args] (fn [values] (apply func (mapv (fn [i] (i values)) args)))))
 (defn constant [x] (fn [values] x))
 (defn variable [x] (fn [values] (get values x)))
@@ -40,11 +41,11 @@
 (defn Variable [])
 (def ConstantProto {
                     :evaluate (fn [this vars] (_x this))
-                    :toString (fn [this] (format "%.1f" (double (_x this)))) ;(format "%.1f" value)
+                    :toString (fn [this] (format "%.1f" (_x this))) ;(format "%.1f" value)
                     :diff     (fn [this d] (Constant 0))
                     })
 (def VariableProto {
-                    :evaluate (fn [this vars] (double (get vars (toString this))))
+                    :evaluate (fn [this vars] (get vars (toString this)))
                     :toString (fn [this] (str (_x this)))
                     :diff     (fn [this d] (cond (= d (_x this)) (Constant 1)
                                                  :else (Constant 0)))})
@@ -55,7 +56,7 @@
                     :x         x
                     :prototype VariableProto})
 (def ExpressionProto {
-                      :evaluate (fn [this vars] (double (apply (_f this) (mapv #(evaluate % vars) (_args this)))))
+                      :evaluate (fn [this vars] (apply (_f this) (mapv #(evaluate % vars) (_args this))))
                       :toString (fn [this]                  ;                                  (cond (= (count (_args this)) 1) (toString (first (_args this)))
                                   (str "(" (_oper this) " " (clojure.string/join " " (mapv toString (_args this))) ")"))
                       })
@@ -76,7 +77,7 @@
 (def Multiply (constructor ExprConstructor (makeProto * "*" (fn [this d] (let [u (first (_args this)) v (apply Multiply (drop 1 (_args this)))]
                                                                            (Add (Multiply (diff u d) v)
                                                                                 (Multiply (diff v d) u)))))))
-(defn div [this vars] (let [args (_args this) u (evaluate (first args) vars) v (evaluate (apply Multiply (drop 1 args)) vars)] (/ (double u) (double v))))
+(defn div [this vars] (let [args (_args this) u (evaluate (first args) vars) v (evaluate (apply Multiply (drop 1 args)) vars)] (/ (double u) v)))
 (def Divide)
 (def DivideProto (makeProto / "/" (fn [this d] (let [u (first (_args this)) v (apply Multiply (drop 1 (_args this)))]
                                                  (Divide (Subtract (Multiply (diff u d) v) (Multiply (diff v d) u))
