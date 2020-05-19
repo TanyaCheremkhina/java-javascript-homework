@@ -1,3 +1,5 @@
+;review
+
 (defn projector [i] (fn [args] {
                                 :pre  [(< 0 (count args)) (<= 0 i) (< i (count (nth args 0)))]
                                 :post [(= (count %) (count args))]
@@ -7,9 +9,9 @@
                                     :pre [(or (= (type args) clojure.lang.PersistentVector)
                                               (seq? args))]
                                     } ((defn check [i]
-                                             (cond
-                                               (= i (count args)) true
-                                               :else (and (f (nth args i) (first args)) (recur (inc i))))) 0)))
+                                         (cond
+                                           (= i (count args)) true
+                                           :else (and (f (nth args i) (first args)) (recur (inc i))))) 0)))
 
 (def checkLength (checkForEvery (fn [x y] (= (count x) (count y)))))
 (def checkNumbers (checkForEvery (fn [x & y] (isa? (type x) Number))))
@@ -53,13 +55,13 @@
 (defn v*s [v & s] {
                    :pre  [(checkVectors [v]) (or (= (count s) 0) (checkNumbers s))]
                    :post [(= (count v) (count %))]
-                   } (mapv (fn [i] (* i (apply * s))) v))
+                   } (let [x (apply * s)] (mapv (fn [i] (* i x)) v)))
 
 
 (defn m*s [m & s] {
                    :pre  [(< 0 (count m)) (checkMatrix [m]) (or (= (count s) 0) (checkNumbers s))]
                    :post [(= (count m) (count %))]
-                   } (mapv (fn [i] (v*s i (apply * s))) m))
+                   } (let [x (apply * s)] (mapv (fn [i] (v*s i x)) m)))
 
 (defn m*v [m v] {
                  :pre  [(checkMatrix [m]) (checkVectors [v]) (= (count (nth m 0)) (count v))]
