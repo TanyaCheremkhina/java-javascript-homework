@@ -1,5 +1,3 @@
-;review
-
 (defn projector [i] (fn [args] {
                                 :pre  [(< 0 (count args)) (<= 0 i) (< i (count (nth args 0)))]
                                 :post [(= (count %) (count args))]
