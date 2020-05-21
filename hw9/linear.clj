@@ -68,22 +68,18 @@
                  :post [(= (count %) (count m))]
                  } (mapv (fn [i] (apply + (v* (nth m i) v))) (range (count m))))
 
-(defn m*m [m1 & args] {
-                       :pre  [(checkMatrix [m1])
-                              (or (= (count args) 0)
-                                  (and (checkMatrix [(first args)])
-                                       (= (count (first args)) (count (nth m1 0)))))]
-                       :post [(checkMatrix [%])
-                              (or (and (= (count args) 0) (= % m1))
-                                  (and (= (count (nth (last args) 0))
-                                          (count (nth % 0))) (= (count %) (count m1))))]
-                       } (cond
-                           (= (count args) 0) m1
-                           (= (count args) 1) (mapv
-                                                (fn [i] (mapv
-                                                          (fn [j] (apply + (v* ((projector j) (first args)) (nth m1 i))))
-                                                          (range (count (nth (nth args 0) 0))))) (range (count m1)))
-                           :else (apply m*m (m*m m1 (first args)) (subvec (toVector args) 1))))
+(defn m*m [& args] {
+                    :pre  [(checkMatrix [(first args)])
+                           (or (= (count args) 1)
+                               (and (checkMatrix [(second args)])
+                                    (= (count (second args)) (count (nth (first args) 0)))))]
+                    :post [(checkMatrix [%])
+                           (or (and (= (count args) 1) (= % (first args)))
+                               (and (= (count (nth (last args) 0))
+                                       (count (nth % 0))) (= (count %) (count (first args)))))]
+                    } (reduce (fn [a b] (mapv (fn [i] (mapv
+                            (fn [j] (apply + (v* ((projector j) b) (nth a i))))
+                            (range (count (nth b 0))))) (range (count a)))) args))
 
 (defn transpose [m] {
                      :pre  [(checkMatrix [m])]
