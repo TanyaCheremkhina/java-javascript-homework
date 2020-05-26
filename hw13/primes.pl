@@ -1,5 +1,5 @@
 h(X, K, MAX_N) :- X =< MAX_N, assert(divisor(X, K)), assert(composite(X)), X1 is X + K, h(X1, K, MAX_N).
-init(N, MAX_N) :- not(composite(N)), A is N * N, h(A, N, MAX_N).
+init(N, MAX_N) :- prime(N), A is N * N, h(A, N, MAX_N).
 init(N, MAX_N) :- N1 is N + 1, N1 * N1 =< MAX_N, init(N1, MAX_N).
 init(MAX_N) :- init(2, MAX_N).
 prime(1) :- !, fail.
